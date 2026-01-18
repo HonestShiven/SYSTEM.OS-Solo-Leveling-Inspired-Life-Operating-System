@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Send, Terminal, Loader2, ChevronRight } from 'lucide-react';
 import { useGameStore } from '../store.ts';
 import { processUserReport } from '../services/geminiService.ts';
@@ -7,6 +7,7 @@ import { processUserReport } from '../services/geminiService.ts';
 const TerminalInput: React.FC = () => {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const submitLock = useRef(false);
   
   const { 
       player, 
@@ -25,8 +26,9 @@ const TerminalInput: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isProcessing) return;
+    if (!input.trim() || isProcessing || submitLock.current) return;
 
+    submitLock.current = true;
     setIsProcessing(true);
     addLog(`USER REPORT: "${input}"`, 'INFO');
 
@@ -75,6 +77,7 @@ const TerminalInput: React.FC = () => {
         addLog('SYSTEM CRITICAL FAILURE. UNABLE TO PROCESS.', 'ERROR');
     } finally {
         setIsProcessing(false);
+        submitLock.current = false;
     }
   };
 
