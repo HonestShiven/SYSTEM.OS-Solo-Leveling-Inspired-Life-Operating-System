@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store';
 import { Panel, Button } from './UI';
-import { Brain, Dumbbell, PlayCircle, Zap, Cpu, X, Plus, Loader2, Trash2, Edit3, Coins, Zap as ZapIcon, Activity, CalendarClock, History, Signal } from 'lucide-react';
-import { Domain, Quest, QuestDifficulty, PlayerStats } from '../types';
+import { Brain, Dumbbell, PlayCircle, Zap, Cpu, X, Plus, Loader2, Trash2, Edit3, Coins, Zap as ZapIcon, Activity, CalendarClock, History, Signal, Save, RefreshCw } from 'lucide-react';
+import { Domain, Quest, QuestDifficulty, PlayerStats, SkillNode } from '../types';
 import { generateProtocolNodes, evaluateQuestDifficulty } from '../services/geminiService';
 import { soundManager } from '../utils/audio';
 import { calculateSkillProtocolLevel } from '../utils/leveling';
@@ -12,24 +12,26 @@ const DSAProgress: React.FC = () => {
   const nodes = useGameStore(state => state.skillProgress);
   const quests = useGameStore(state => state.quests);
   const completeQuest = useGameStore(state => state.completeQuest);
-  const abandonQuest = useGameStore(state => state.abandonQuest);
   const removeQuest = useGameStore(state => state.removeQuest);
   const updateQuest = useGameStore(state => state.updateQuest);
   const addQuests = useGameStore(state => state.addQuests);
   const activeDomains = useGameStore(state => state.activeDomains);
   const registerProtocol = useGameStore(state => state.registerProtocol);
+  const updateProtocol = useGameStore(state => state.updateProtocol);
   const removeProtocol = useGameStore(state => state.removeProtocol);
+  const protocolRegistry = useGameStore(state => state.protocolRegistry);
 
   const [isAdding, setIsAdding] = useState(false);
   const [newProtocolName, setNewProtocolName] = useState('');
   const [newProtocolDesc, setNewProtocolDesc] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [confirmFailId, setConfirmFailId] = useState<string | null>(null);
-  const [isAbandoningId, setIsAbandoningId] = useState<string | null>(null);
   
   const [confirmDeleteProtocol, setConfirmDeleteProtocol] = useState<string | null>(null);
   const [addingQuestToDomain, setAddingQuestToDomain] = useState<string | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [editingProtocolDomain, setEditingProtocolDomain] = useState<string | null>(null);
+  const [editingDescription, setEditingDescription] = useState('');
+  const [isEnhancing, setIsEnhancing] = useState(false);
+
   const [customQuestForm, setCustomQuestForm] = useState({
       title: '',
       desc: '',
@@ -59,14 +61,34 @@ const DSAProgress: React.FC = () => {
   const handleAddProtocol = async () => {
       if (!newProtocolName.trim()) return;
       setIsGenerating(true);
-      const generatedNodes = await generateProtocolNodes(newProtocolName, newProtocolDesc);
-      if (generatedNodes.length > 0) {
-          // UPDATED: Now passing the description
-          registerProtocol(newProtocolName, generatedNodes, newProtocolDesc);
-          setIsAdding(false);
-          setNewProtocolName('');
-          setNewProtocolDesc('');
+      
+      try {
+          // Attempt AI Generation
+          const generatedNodes = await generateProtocolNodes(newProtocolName, newProtocolDesc);
+          
+          if (generatedNodes && generatedNodes.length > 0) {
+              registerProtocol(newProtocolName, generatedNodes, newProtocolDesc);
+          } else {
+             // Fallback if AI returns empty array silently
+             throw new Error("No nodes generated");
+          }
+      } catch (e) {
+          console.warn("Offline Protocol Creation: AI unavailable or failed.");
+          // Manual Fallback Node
+          const placeholderNode: SkillNode = {
+              id: `manual_node_${Date.now()}`,
+              name: `${newProtocolName} Fundamentals`,
+              domain: newProtocolName,
+              mastery: 0,
+              dependencies: [],
+              description: "Manual entry. Edit protocol to generate expert path later."
+          };
+          registerProtocol(newProtocolName, [placeholderNode], newProtocolDesc);
       }
+      
+      setIsAdding(false);
+      setNewProtocolName('');
+      setNewProtocolDesc('');
       setIsGenerating(false);
   };
 
@@ -81,9 +103,42 @@ const DSAProgress: React.FC = () => {
       }
   };
 
+  // --- EDIT PROTOCOL LOGIC ---
+  const handleEditProtocol = (domain: string) => {
+      const meta = protocolRegistry?.find(p => p.domain === domain);
+      setEditingProtocolDomain(domain);
+      setEditingDescription(meta?.description || '');
+  };
+
+  const handleSaveProtocol = () => {
+      if (!editingProtocolDomain) return;
+      updateProtocol(editingProtocolDomain, editingDescription);
+      setEditingProtocolDomain(null);
+      soundManager.playClick();
+  };
+
+  const handleEnhanceProtocol = async () => {
+      if (!editingProtocolDomain) return;
+      setIsEnhancing(true);
+      try {
+          // Try to generate nodes based on the (potentially updated) description
+          const generatedNodes = await generateProtocolNodes(editingProtocolDomain, editingDescription);
+          if (generatedNodes.length > 0) {
+              // Re-registering adds new nodes to the existing list in store
+              registerProtocol(editingProtocolDomain, generatedNodes, editingDescription);
+              soundManager.playSuccess();
+          }
+      } catch (e) {
+          console.warn("Enhancement failed", e);
+      } finally {
+          setIsEnhancing(false);
+      }
+  };
+
+  // --- CUSTOM QUEST LOGIC ---
+
   const handleEvaluateCustomQuest = async () => {
       if (!customQuestForm.title) return;
-      setIsEvaluating(true);
       try {
           const result = await evaluateQuestDifficulty(customQuestForm.title + " " + customQuestForm.desc);
           setCustomQuestForm(prev => ({
@@ -96,8 +151,6 @@ const DSAProgress: React.FC = () => {
           soundManager.playSuccess();
       } catch (e) {
           console.error("Eval failed", e);
-      } finally {
-          setIsEvaluating(false);
       }
   };
 
@@ -109,7 +162,6 @@ const DSAProgress: React.FC = () => {
           description: customQuestForm.desc || 'Manual Override Protocol',
           xpReward: Number(customQuestForm.xp),
           goldReward: Number(customQuestForm.gold),
-          // IMPORTANT: Must be SKILL_CHALLENGE to update protocol progress bars
           type: 'SKILL_CHALLENGE', 
           difficulty: customQuestForm.diff,
           domain: addingQuestToDomain,
@@ -182,12 +234,9 @@ const DSAProgress: React.FC = () => {
       </div>
   );
 
-  // Helper to derive metrics from Quest History without adding state
   const calculateMetrics = (domain: string) => {
       const completed = quests.filter(q => q.domain === domain && q.isCompleted);
       
-      // Attempt to extract timestamp from IDs (manual_TS, gen_TS, etc.)
-      // Regex matches underscore followed by 13 digits (standard JS timestamp)
       const dates = completed.map(q => {
           const match = q.id.match(/_(\d{13})/); 
           return match ? new Date(parseInt(match[1])) : null;
@@ -199,28 +248,23 @@ const DSAProgress: React.FC = () => {
           return { total: 0, last: 'NEVER', streak: 0, status: 'DORMANT' };
       }
 
-      // If no valid dates extracted but we have completions, handle it
       if (dates.length === 0) {
           return { total: totalExecuted, last: 'UNKNOWN', streak: 0, status: 'UNKNOWN' };
       }
 
-      // Sort desc
       dates.sort((a, b) => b.getTime() - a.getTime());
       const lastDate = dates[0];
       const now = new Date();
 
-      // Last Execution Text
       const diffTime = Math.abs(now.getTime() - lastDate.getTime());
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       let lastText = `${diffDays} DAYS AGO`;
       if (diffDays === 0) lastText = "TODAY";
       if (diffDays === 1) lastText = "YESTERDAY";
 
-      // Status (Active if < 48h)
       const hoursDiff = diffTime / (1000 * 60 * 60);
       const status = hoursDiff <= 48 ? 'ACTIVE' : 'DORMANT';
 
-      // Streak Calculation
       const uniqueDays: string[] = Array.from(new Set(dates.map(d => d.toDateString())));
       uniqueDays.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
@@ -229,7 +273,6 @@ const DSAProgress: React.FC = () => {
       const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toDateString();
 
-      // Streak is only alive if latest is today or yesterday
       if (uniqueDays[0] === todayStr || uniqueDays[0] === yesterdayStr) {
           streak = 1;
           let currentRef = new Date(uniqueDays[0]);
@@ -277,6 +320,7 @@ const DSAProgress: React.FC = () => {
                       </Button>
                       <Button variant="ghost" onClick={() => setIsAdding(false)}>CANCEL</Button>
                   </div>
+                  <p className="text-[9px] text-gray-500 mt-2 italic">* Offline Mode: Protocols will be created with basic templates if System AI is unreachable.</p>
               </div>
           )}
       </div>
@@ -285,6 +329,7 @@ const DSAProgress: React.FC = () => {
         {activeDomains.map(domain => {
             const domainChallenges = quests.filter(q => q.type === 'SKILL_CHALLENGE' && q.domain === domain && !q.isCompleted);
             const isDeleting = confirmDeleteProtocol === domain;
+            const isEditingProtocol = editingProtocolDomain === domain;
             const metrics = calculateMetrics(domain);
             const currentLevel = calculateSkillProtocolLevel(metrics.total);
 
@@ -306,6 +351,13 @@ const DSAProgress: React.FC = () => {
                         {/* ACTION BUTTONS HEADER */}
                         <div className="flex items-center gap-2">
                              <button 
+                                onClick={() => isEditingProtocol ? setEditingProtocolDomain(null) : handleEditProtocol(domain)}
+                                className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest border px-2 py-1 transition-all ${isEditingProtocol ? 'bg-system-blue text-white border-system-blue' : 'bg-black/40 text-gray-600 border-white/10 hover:border-system-blue/50 hover:text-system-blue'}`}
+                             >
+                                <Edit3 size={10} /> {isEditingProtocol ? 'CLOSE' : 'EDIT'}
+                             </button>
+
+                             <button 
                                 onClick={() => handleDeleteProtocol(domain)}
                                 className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest border px-2 py-1 transition-all ${
                                     isDeleting 
@@ -321,6 +373,33 @@ const DSAProgress: React.FC = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* PROTOCOL EDIT PANEL */}
+                    {isEditingProtocol && (
+                        <div className="mb-4 bg-system-blue/5 border-y border-system-blue/20 p-4 animate-in fade-in slide-in-from-top-2">
+                            <label className="text-[9px] text-system-blue font-bold uppercase tracking-widest block mb-2">Protocol Directives / Context</label>
+                            <textarea 
+                                className="w-full bg-black/80 border border-white/10 p-2 text-white text-xs font-mono mb-3 h-20 focus:border-system-blue focus:outline-none resize-none"
+                                value={editingDescription}
+                                onChange={(e) => setEditingDescription(e.target.value)}
+                                placeholder="Describe the focus of this protocol for the System AI..."
+                            />
+                            <div className="flex gap-2">
+                                <Button onClick={handleSaveProtocol} variant="primary" className="flex-1 py-1 text-[10px]">
+                                    <Save size={12} /> UPDATE METADATA
+                                </Button>
+                                <Button 
+                                    onClick={handleEnhanceProtocol} 
+                                    disabled={isEnhancing}
+                                    variant="ghost" 
+                                    className="flex-1 py-1 text-[10px] border-purple-500 text-purple-400 hover:bg-purple-900/20"
+                                >
+                                    {isEnhancing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} 
+                                    EXPAND KNOWLEDGE GRAPH (AI)
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* METRICS GRID */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
