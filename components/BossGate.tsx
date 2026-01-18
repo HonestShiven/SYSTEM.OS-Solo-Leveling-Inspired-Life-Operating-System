@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 import { Panel, Button } from './UI';
 import { Skull, Sword, Lock, Wand2, Eye, Check, AlertTriangle, Radar, Loader2, Sparkles, Crosshair, HelpCircle, ShieldAlert, Target } from 'lucide-react';
@@ -23,14 +23,18 @@ const BossGate: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanRank, setScanRank] = useState<QuestDifficulty>(player.rank as QuestDifficulty);
   const [selectedDomain, setSelectedDomain] = useState<string>(''); 
+  const scanLock = useRef(false);
 
   const handleScanGate = async () => {
+    if (scanLock.current) return;
+
     const pendingBoss = bosses.find(b => b.id.startsWith('boss_dyn_') && b.status !== 'DEFEATED');
     if (pendingBoss) {
         addLog(`SCAN INTERRUPTED: GATE [${pendingBoss.name}] REMAINS OPEN. ELIMINATE TARGET TO RE-CALIBRATE SCANNER.`, 'ERROR');
         return;
     }
 
+    scanLock.current = true;
     setIsScanning(true);
     
     const domainsToScan = selectedDomain ? [selectedDomain] : activeDomains;
@@ -54,7 +58,8 @@ const BossGate: React.FC = () => {
         
         if (dynamicBossData) {
             const newBossId = `boss_dyn_${Date.now()}`;
-            const defaultImage = 'https://image.pollinations.ai/prompt/solo%20leveling%20dark%20creature%20boss%20cinematic?width=600&height=400&nologo=true';
+            // Simple placeholder until image generates
+            const defaultImage = ''; 
             
             let newBoss: Boss = {
                 id: newBossId,
@@ -73,15 +78,20 @@ const BossGate: React.FC = () => {
             };
 
             // Requirement 2: Wait for image generation BEFORE showing the modal
-            addLog(`BOSS DETECTED. SYNCHRONIZING VISUAL DATA...`, 'INFO');
+            // IMPORTANT: Increased delay to 3s because Gemini Free Tier has a ~15 RPM limit.
+            // If we hit Text Gen + Image Gen instantly, we get a 429 error.
+            addLog(`BOSS DETECTED. SYNCHRONIZING VISUAL DATA (WAITING FOR STABILITY)...`, 'INFO');
+            await new Promise(resolve => setTimeout(resolve, 3000)); 
+
             const base64 = await generateBossImage(newBoss);
             if (base64) {
                 newBoss.imageUrl = base64;
+                addLog(`GATE DETECTED: ${newBoss.name} MATERIALIZED.`, 'SUCCESS');
+            } else {
+                 addLog(`VISUAL DATA CORRUPTED. FALLING BACK TO TEXT STREAM.`, 'WARNING');
             }
             
             useGameStore.setState(s => ({ bosses: [newBoss, ...s.bosses] }));
-            addLog(`GATE DETECTED: ${newBoss.name} MATERIALIZED.`, 'SUCCESS');
-            
             openBossModal(newBoss, 'DISCOVERY');
             
         } else {
@@ -91,6 +101,7 @@ const BossGate: React.FC = () => {
         addLog(`SCAN ERROR: SYSTEM OVERLOAD.`, 'ERROR');
     } finally {
         setIsScanning(false);
+        scanLock.current = false;
     }
   };
 
