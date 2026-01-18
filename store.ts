@@ -279,11 +279,17 @@ export const useGameStore = create<GameStore>()(
             refreshShop: () => {},
             updateBossImage: (bossId, imageUrl) => set(s => ({ bosses: s.bosses.map(b => b.id === bossId ? { ...b, imageUrl } : b) })),
             addCustomReward: (item) => set(s => ({ shopItems: [...s.shopItems, item], customRewards: [...s.customRewards, item] })),
+            
             registerProtocol: (domain, nodes, description = "") => set(s => ({ 
                 activeDomains: s.activeDomains.includes(domain) ? s.activeDomains : [...s.activeDomains, domain], 
                 skillProgress: [...s.skillProgress, ...nodes.map(n => ({ ...n, mastery: 0 }))],
                 protocolRegistry: [...(s.protocolRegistry || []).filter(p => p.domain !== domain), { domain, description, dateAdded: new Date().toISOString() }]
             })),
+            
+            updateProtocol: (domain, description) => set(s => ({
+                protocolRegistry: s.protocolRegistry.map(p => p.domain === domain ? { ...p, description } : p)
+            })),
+
             removeProtocol: (domain) => set(s => ({ 
                 activeDomains: s.activeDomains.filter(d => d !== domain), 
                 skillProgress: s.skillProgress.filter(n => n.domain !== domain), 
