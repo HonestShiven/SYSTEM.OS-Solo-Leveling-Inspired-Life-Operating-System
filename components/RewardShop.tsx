@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { useGameStore } from '../store';
-import { Panel, Button, Badge } from './UI';
-import { Lock, ShoppingCart, RefreshCw, Zap, Gift, Coffee, Gamepad2, BookOpen, Plus, X, Loader2, Sparkles } from 'lucide-react';
+import { Panel, Button } from './UI';
+import { Lock, ShoppingCart, RefreshCw, Zap, Gift, Coffee, Gamepad2, BookOpen, Plus, X, Loader2, Sparkles, Edit3 } from 'lucide-react';
 import { evaluateRewardValue, generateRewardImage } from '../services/geminiService';
-import { RewardItem } from '../types';
+import { RewardItem, RewardItemCategory } from '../types';
 
 const RewardShop: React.FC = () => {
   const { player, purchaseReward, skillProgress, shopItems, addCustomReward } = useGameStore();
@@ -14,9 +14,12 @@ const RewardShop: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  
+  // Manual Override States (Always visible now)
+  const [editedCost, setEditedCost] = useState<number>(100);
+  const [selectedCategory, setSelectedCategory] = useState<RewardItemCategory>('MISC');
+
   const [isCalculating, setIsCalculating] = useState(false);
-  const [calculatedItem, setCalculatedItem] = useState<{ cost: number, category: string } | null>(null);
-  const [editedCost, setEditedCost] = useState<number>(0);
 
   const filteredRewards = useMemo(() => {
     const items = shopItems || [];
@@ -44,25 +47,35 @@ const RewardShop: React.FC = () => {
   const handleCalculate = async () => {
       if (!newName.trim()) return;
       setIsCalculating(true);
-      const result = await evaluateRewardValue(newName, newDesc);
-      setCalculatedItem(result);
-      setEditedCost(result.cost);
+      try {
+        const result = await evaluateRewardValue(newName, newDesc);
+        setEditedCost(result.cost);
+        setSelectedCategory(result.category as RewardItemCategory);
+      } catch (error) {
+        console.warn("Offline or API Error: Manual entry required");
+        // We don't block the user, just let them know or do nothing so they can type
+      }
       setIsCalculating(false);
   };
 
   const handleAdd = async () => {
-      if (!calculatedItem || !newName.trim()) return;
+      if (!newName.trim() || editedCost <= 0) return;
       
-      setIsCalculating(true); // Re-use loading state for image generation
+      setIsCalculating(true); // Show loading during image gen
       
-      const imageUrl = await generateRewardImage(newName, newDesc);
+      let imageUrl: string | null = null;
+      try {
+          imageUrl = await generateRewardImage(newName, newDesc);
+      } catch (e) {
+          console.warn("Image gen failed (Offline)", e);
+      }
 
       const newItem: RewardItem = {
           id: `custom_${Date.now()}`,
           name: newName,
           description: newDesc,
-          cost: editedCost, // Use the edited cost instead of the original calculated cost
-          category: calculatedItem.category as any,
+          cost: editedCost, 
+          category: selectedCategory,
           imageUrl: imageUrl || undefined
       };
       
@@ -73,9 +86,17 @@ const RewardShop: React.FC = () => {
       setIsCalculating(false);
       setNewName('');
       setNewDesc('');
-      setCalculatedItem(null);
-      setEditedCost(0);
+      setEditedCost(100);
+      setSelectedCategory('MISC');
   };
+
+  const openCreation = () => {
+      setIsCreating(true);
+      setNewName('');
+      setNewDesc('');
+      setEditedCost(100);
+      setSelectedCategory('MISC');
+  }
 
   return (
     <Panel title="System Store // Exchange" className="h-full flex flex-col" accentColor="yellow">
@@ -101,7 +122,7 @@ const RewardShop: React.FC = () => {
         <div className="flex gap-4">
             {!isCreating && (
                 <button 
-                    onClick={() => setIsCreating(true)}
+                    onClick={openCreation}
                     className="flex items-center gap-2 px-3 py-1 bg-system-blue/10 border border-system-blue/50 text-system-blue text-[10px] font-bold uppercase tracking-widest hover:bg-system-blue hover:text-white transition-colors"
                 >
                     <Plus size={12} /> New Item
@@ -115,7 +136,7 @@ const RewardShop: React.FC = () => {
       </div>
 
       {isCreating ? (
-          <div className="flex-1 p-8 flex flex-col items-center justify-center bg-black/40 border border-yellow-500/20 relative">
+          <div className="flex-1 p-8 flex flex-col items-center justify-center bg-black/40 border border-yellow-500/20 relative animate-in fade-in zoom-in-95">
               <button 
                 onClick={() => setIsCreating(false)} 
                 className="absolute top-4 right-4 text-gray-500 hover:text-white"
@@ -127,7 +148,7 @@ const RewardShop: React.FC = () => {
                   <div className="text-center mb-6">
                       <Sparkles className="mx-auto text-yellow-500 mb-2" size={32} />
                       <h3 className="text-xl font-bold text-white uppercase tracking-widest">Define Reward Parameters</h3>
-                      <p className="text-xs text-gray-500 font-mono">The System will evaluate cost based on item value.</p>
+                      <p className="text-xs text-gray-500 font-mono">Manually configure or use System AI to evaluate cost.</p>
                   </div>
                   
                   <div className="space-y-2">
@@ -151,47 +172,53 @@ const RewardShop: React.FC = () => {
                       />
                   </div>
 
-                  {calculatedItem && (
-                      <div className="bg-yellow-900/10 border border-yellow-500/50 p-4 flex justify-between items-center animate-pulse-slow">
-                          <div>
-                              <div className="text-[10px] text-yellow-500 uppercase tracking-widest">System Valuation (Editable)</div>
-                              <div className="flex items-center gap-2">
-                                <input 
-                                    type="number"
-                                    className="bg-transparent border-none text-2xl font-bold text-yellow-400 font-mono w-28 focus:outline-none focus:ring-0"
-                                    value={editedCost}
-                                    onChange={(e) => setEditedCost(Number(e.target.value))}
-                                />
-                                <span className="text-2xl font-bold text-yellow-400 font-mono">G</span>
-                              </div>
-                          </div>
-                          <div className="text-right">
-                               <div className="text-[10px] text-gray-500 uppercase tracking-widest">Category</div>
-                               <div className="text-sm font-bold text-white">{calculatedItem.category}</div>
+                  {/* Manual / Auto Configuration Row */}
+                  <div className="bg-yellow-900/10 border border-yellow-500/50 p-4 flex gap-4 items-end">
+                      <div className="flex-1">
+                          <label className="text-[10px] text-yellow-500 uppercase tracking-widest block mb-1">Cost (G)</label>
+                          <div className="flex items-center gap-2">
+                            <input 
+                                type="number"
+                                className="bg-black/50 border border-yellow-500/30 text-2xl font-bold text-yellow-400 font-mono w-full p-2 focus:outline-none focus:border-yellow-500"
+                                value={editedCost}
+                                onChange={(e) => setEditedCost(Number(e.target.value))}
+                            />
                           </div>
                       </div>
-                  )}
+                      <div className="flex-1">
+                           <label className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Category</label>
+                           <select 
+                                className="w-full bg-black/50 border border-white/20 text-white text-sm p-3 focus:outline-none focus:border-yellow-500 font-mono uppercase"
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value as any)}
+                           >
+                               <option value="FOOD">Food</option>
+                               <option value="ENTERTAINMENT">Entertainment</option>
+                               <option value="REST">Rest</option>
+                               <option value="MISC">Misc</option>
+                           </select>
+                      </div>
+                  </div>
 
                   <div className="pt-4 flex gap-3">
-                      {!calculatedItem ? (
-                          <Button 
-                            className="w-full" 
-                            onClick={handleCalculate}
-                            disabled={!newName.trim() || isCalculating}
-                          >
-                                {isCalculating ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />} 
-                                {isCalculating ? 'ANALYZING...' : 'CALCULATE SYSTEM COST'}
-                          </Button>
-                      ) : (
-                          <Button 
-                            className="w-full bg-green-900/20 border-green-500 text-green-500 hover:bg-green-500 hover:text-white hover:shadow-[0_0_20px_#22c55e]" 
-                            onClick={handleAdd}
-                            variant="primary" 
-                            disabled={isCalculating}
-                          >
-                                {isCalculating ? <Loader2 className="animate-spin" size={16} /> : 'CONFIRM & MATERIALIZE'}
-                          </Button>
-                      )}
+                      <Button 
+                        className="flex-1" 
+                        onClick={handleCalculate}
+                        disabled={!newName.trim() || isCalculating}
+                        variant="ghost"
+                      >
+                            {isCalculating ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />} 
+                            <span className="ml-2">{isCalculating ? 'AI EVALUATING...' : 'AI AUTO-PRICE'}</span>
+                      </Button>
+
+                      <Button 
+                        className="flex-[2] bg-green-900/20 border-green-500 text-green-500 hover:bg-green-500 hover:text-white hover:shadow-[0_0_20px_#22c55e]" 
+                        onClick={handleAdd}
+                        variant="primary" 
+                        disabled={isCalculating || !newName.trim()}
+                      >
+                            {isCalculating ? 'MATERIALIZING...' : 'CONFIRM & MATERIALIZE'}
+                      </Button>
                   </div>
               </div>
           </div>
@@ -264,3 +291,4 @@ const RewardShop: React.FC = () => {
 };
 
 export default RewardShop;
+
