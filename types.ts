@@ -200,6 +200,7 @@ export interface GameStore {
   updateBossImage: (bossId: string, imageUrl: string) => void;
   addCustomReward: (item: RewardItem) => void;
   registerProtocol: (domain: string, nodes: SkillNode[], description?: string) => void;
+  updateProtocol: (domain: string, description: string) => void;
   removeProtocol: (domain: string) => void; 
   
   addHabit: (name: string, category: HabitCategory, color: string) => void;
