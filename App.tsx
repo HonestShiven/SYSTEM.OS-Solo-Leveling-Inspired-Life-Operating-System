@@ -1,4 +1,4 @@
-
+// Triggering first CodeRabbit review
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useGameStore } from './store';
