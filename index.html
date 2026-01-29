@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE SYSTEM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            system: {
+              black: '#020204',
+              dark: '#0a0b14',
+              panel: 'rgba(10, 15, 30, 0.85)',
+              // UPDATED: Use CSS Variable for dynamic runtime theming (Blue -> Purple)
+              blue: 'rgb(var(--color-system-blue) / <alpha-value>)',
+              cyan: '#06b6d4',
+              purple: '#8b5cf6',
+              text: '#e2e8f0',
+              dim: '#64748b',
+              danger: '#ef4444',
+              success: '#10b981',
+              gold: '#f59e0b',
+              grid: 'rgba(59, 130, 246, 0.05)'
+            }
+          },
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+            sans: ['"Rajdhani"', 'ui-sans-serif', 'system-ui', '-apple-system', "Segoe UI", 'Roboto', "Helvetica Neue", 'Arial', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glitch': 'glitch 1s linear infinite',
+            'scanline': 'scanline 8s linear infinite',
+            'shine': 'shine 2s linear infinite',
+            'float': 'float 6s ease-in-out infinite',
+            'spin-slow': 'spin 12s linear infinite',
+            'spin-reverse': 'spin-reverse 15s linear infinite',
+          },
+          keyframes: {
+            glitch: {
+              '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
+              '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
+              '62%': { transform: 'translate(0,0) skew(5deg)' },
+            },
+            scanline: {
+              '0%': { transform: 'translateY(-100%)' },
+              '100%': { transform: 'translateY(100%)' }
+            },
+            shine: {
+              '0%': { left: '-100%' },
+              '100%': { left: '100%' }
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            'spin-reverse': {
+              '0%': { transform: 'rotate(360deg)' },
+              '100%': { transform: 'rotate(0deg)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      /* Default System Blue (Tailwind Blue-500: #3b82f6) */
+      --color-system-blue: 59 130 246;
+    }
+
+    body {
+      background-color: #020204;
+      color: #e2e8f0;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.02) 1px, transparent 1px);
+      background-size: 30px 30px;
+      background-position: center top;
+      font-family: 'Rajdhani', sans-serif;
+      overflow: hidden;
+      /* Prevent body scroll, handle in app */
+      overscroll-behavior: none;
+      /* STRICTLY PREVENT RUBBER-BANDING */
+    }
+
+    /* CRT Vignette */
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle, transparent 60%, rgba(0, 0, 0, 0.6) 100%);
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Custom Scrollbar - System Theme */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #1e3a8a;
+      border-radius: 0px;
+      border: 1px solid rgb(var(--color-system-blue) / 0.3);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgb(var(--color-system-blue));
+      box-shadow: 0 0 10px rgb(var(--color-system-blue) / 0.5);
+    }
+
+    .clip-path-button {
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+
+    .clip-path-panel {
+      clip-path: polygon(20px 0, 100% 0,
+          100% calc(100% - 20px), calc(100% - 20px) 100%,
+          0 100%, 0 20px);
+    }
+
+    .system-card {
+      background: rgba(10, 15, 30, 0.6);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgb(var(--color-system-blue) / 0.15);
+    }
+
+    .system-text-glow {
+      text-shadow: 0 0 10px rgb(var(--color-system-blue) / 0.6);
+    }
+
+    .system-border-glow {
+      box-shadow: 0 0 15px rgb(var(--color-system-blue) / 0.15);
+      border-color: rgb(var(--color-system-blue) / 0.5);
+    }
+
+    .glitch-text {
+      position: relative;
+    }
+
+    .glitch-text::before,
+    .glitch-text::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .glitch-text::before {
+      left: 2px;
+      text-shadow: -1px 0 #ff00c1;
+      clip: rect(44px, 450px, 56px, 0);
+      animation: glitch-anim 5s infinite linear alternate-reverse;
+    }
+
+    .glitch-text::after {
+      left: -2px;
+      text-shadow: -1px 0 #00fff9;
+      clip: rect(44px, 450px, 56px, 0);
+      animation: glitch-anim2 5s infinite linear alternate-reverse;
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "zustand/": "https://esm.sh/zustand@^5.0.10/",
+    "zustand": "https://esm.sh/zustand@^5.0.10",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
